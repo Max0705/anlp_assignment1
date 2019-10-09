@@ -14,6 +14,9 @@ def process_line(str):
     # convert all English characters to lower case
     new_str = new_str.lower()
 
+    # add '##' at the beginning and '#' at the end of each line
+    new_str = '##' + new_str + '#'
+
     return new_str
 
 
@@ -27,10 +30,8 @@ def process_line(str):
 # task3
 # IMPORTANT QUESTION: DO WE NEED TO ADD '#' AT THE BEGINNING AND THE END OF THE SENTENCE???
 # no add of '#' in following codes
-alpha = [' ', '.', '0', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
-         't', 'u', 'v', 'w', 'x', 'y', 'z']
-alpha2 = [' ', '#', '.', '0', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
-          's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
+alpha = [' ', '#', '.', '0', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
+         's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
 
 
 # count n-characters sequence in each line
@@ -42,6 +43,9 @@ def count_character(count_result, str, n):
         else:
             count_result[seq] += 1
     return count_result
+
+
+# def
 
 
 def language_model(input_file, language):
@@ -58,6 +62,11 @@ def language_model(input_file, language):
     for c1 in alpha:
         for c2 in alpha:
             for c3 in alpha:
+                # to avoid sequences like '# #' and ' # '
+                if c1 == '#' and c3 == '#':
+                    continue
+                if c1 != '#' and c2 == '#':
+                    continue
                 seq2 = ''.join([c1, c2])
                 seq3 = ''.join([c1, c2, c3])
                 if seq2 not in count_character_2:
@@ -66,12 +75,13 @@ def language_model(input_file, language):
                     count_character_3[seq3] = 0
 
                 # add one smoothing
-                prob[seq3] = (count_character_3[seq3] + 1) / (count_character_2[seq2] + 29)
+                prob[seq3] = (count_character_3[seq3] + 1) / (count_character_2[seq2] + 30)
 
     # write the trigram model probabilities into file
     output_file = open('trigram_model.' + language, 'w')
     for item in prob:
-        output_file.write(item + '\t' + str(prob[item]) + '\n')
+        # output_file.write(item + '\t' + str(prob[item]) + '\n')
+        output_file.write(item + '\t' + '%e' % prob[item] + '\n')
 
     output_file.close()
 
@@ -88,7 +98,7 @@ def choose_character(new_prob):
     keys = list(new_prob.keys())
     values = list(new_prob.values())
     target = random.uniform(0, 1)
-    print(target)
+    # print(target)
     present = 0
     k = ''
     for i in range(0, len(keys)):
@@ -96,7 +106,7 @@ def choose_character(new_prob):
         if present >= target:
             k = keys[i]
             break
-
+    print(k)
     return k
 
 
@@ -111,23 +121,31 @@ def generate_from_LM(model_file_name):
     output_str = ''
 
     # random generate the first two characters
-    head = random.sample(alpha, 2)
-    head = ''.join(head)
+    # head = random.sample(alpha, 2)
+    # head = ''.join(head)
+    head = '##'
     output_str += head
 
     # generate the other characters
     for i in range(N - 2):
-        print(head)
+        # print(head)
         new_prob = {}
         for item in alpha:
-            new_prob[item] = prob[head + item]
+            if head + item in prob.keys():
+                new_prob[item] = prob[head + item]
 
         print(new_prob)
-        k = choose_character(new_prob)
+        k = random.choices(population=list(new_prob.keys()), weights=list(new_prob.values()), k=1)
+        k = k[0]
+        print(k)
+        # k = choose_character(new_prob)
         # k = max(new_prob.items(), key=lambda x: x[1])
         # output_str += k[0]
         output_str += k
         head = output_str[-2:]
+        if k == '#':
+            head = '##'
+            output_str += '\n##'
 
     print(output_str)
 
@@ -169,8 +187,8 @@ def calculate_perplexity(model, test_file):
 
 if __name__ == '__main__':
     # task3
-    # input_file = open('./data/training.en', 'r')
-    # language_model(input_file, 'en')
+    input_file = open('./data/training.en', 'r')
+    language_model(input_file, 'en')
     # input_file = open('./data/training.es', 'r')
     # language_model(input_file, 'es')
     # input_file = open('./data/training.de', 'r')
@@ -178,10 +196,10 @@ if __name__ == '__main__':
     # input_file.close()
 
     # task4
-    # generate_from_LM('./data/model-br.en')
+    generate_from_LM('./data/model-br.en')
     # generate_from_LM('trigram_model.en')
 
     # task5
     calculate_perplexity('trigram_model.en', './data/test')
-    calculate_perplexity('trigram_model.es', './data/test')
-    calculate_perplexity('trigram_model.de', './data/test')
+    # calculate_perplexity('trigram_model.es', './data/test')
+    # calculate_perplexity('trigram_model.de', './data/test')
