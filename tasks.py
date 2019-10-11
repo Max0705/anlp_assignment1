@@ -75,7 +75,10 @@ def language_model(input_file, language):
                     count_character_3[seq3] = 0
 
                 # add one smoothing
-                prob[seq3] = (count_character_3[seq3] + 1) / (count_character_2[seq2] + 30)
+                if c1 == '#' and c2 != '#':
+                    prob[seq3] = (count_character_3[seq3] + 1) / (count_character_2[seq2] + 29)
+                else:
+                    prob[seq3] = (count_character_3[seq3] + 1) / (count_character_2[seq2] + 29)
 
     # write the trigram model probabilities into file
     output_file = open('trigram_model.' + language, 'w')
