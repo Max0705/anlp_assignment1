@@ -8,12 +8,10 @@ from sklearn.model_selection import train_test_split
 # task1
 def preprocess_line(str):
     # remove the other characters
-    fil1 = re.compile('[^a-zA-Z0-9. ]')
-    new_str = fil1.sub('', str)
-
+    new_str = re.sub('[^a-zA-Z0-9. ]', '', str)
+    
     # convert all digits to 0
-    fil2 = re.compile('[0-9]')
-    new_str = fil2.sub('0', new_str)
+    new_str = re.sub('[0-9]', "0", new_str)
 
     # convert all English characters to lower case
     new_str = new_str.lower()
@@ -38,12 +36,12 @@ def count_ngrams(ngram_count, str, n):
     return ngram_count
 
 # count bigrams and trigrams of a text and generates trigram probabilities using add-alpha smoothing 
-def language_model(input_file, language):
+def language_model(input_file, language, alpha):
     bigram_count = {}
     trigram_count = {}
     for line in input_file:
         # process line as described in task1
-        line = prepreprocess_line(line)
+        line = preprocess_line(line)
         bigram_count = count_ngrams(bigram_count, line, 2)
         trigram_count = count_ngrams(trigram_count, line, 3)
 
@@ -66,9 +64,9 @@ def language_model(input_file, language):
                     
                 # add alpha smoothing
                 if c1 == '#' and c2 != '#':
-                    prob[seq3] = (count_character_3[seq3] + alpha) / (count_character_2[seq2] + alpha*30)
+                    prob[seq3] = (trigram_count[seq3] + alpha) / (bigram_count[seq2] + alpha*30)
                 else:
-                    prob[seq3] = (count_character_3[seq3] + alpha) / (count_character_2[seq2] + alpha*29)
+                    prob[seq3] = (trigram_count[seq3] + alpha) / (bigram_count[seq2] + alpha*29)
 
     # write the trigram model probabilities into file
     output_file = open('trigram_model.' + language, 'w')
@@ -81,14 +79,21 @@ def language_model(input_file, language):
 # Split test text into 2 parts: a held-out (validation) text and a test text
 
 def split_input_file(input_file):    
-    validation, test = train_test_split(preprocess_text(input_file), train_size=0.5, random_state=1)
+    #
+    text = []
+    with open(input_file) as f:
+        for line in f:
+            line = preprocess_line(line)
+            text.append(line)
+        validation, test = train_test_split(text, train_size=0.5, random_state=1)
+        
     # save validation text into txt file
     with open("validation.txt", "w") as f:
-        for line in train:
+        for line in validation:
             f.write("".join(line) + "\n")    
     # save test text into txt file
     with open("test.txt", "w") as f:
-        for line in validation:
+        for line in test:
             f.write("".join(line) + "\n")
 
 # Train the training text with different alphas and choose the one that minimizes the perplexity on the validation test   
@@ -126,11 +131,11 @@ def generate_from_LM(model_file_name):
     for i in range(N - 2):
         # print(head)
         new_prob = {}
-        for item in alpha:
+        for item in vocab:
             if head + item in prob.keys():
                 new_prob[item] = prob[head + item]
 
-        print(new_prob)
+        #print(new_prob)
         trigram_picked = random.choices(population=list(new_prob.keys()), weights=list(new_prob.values()), k=1)
         ch_picked = trigram_picked[0]
         output += ch_picked
@@ -159,7 +164,7 @@ def calculate_perplexity(model, test_file):
     f2 = open(test_file, 'r')
     for line in f2:
         # process line as described in task1
-        line = process_line(line)
+        line = preprocess_line(line)
         for i in range(0, len(line) - 2):
             p = prob[line[i:i + 3]]
             total_logp += -math.log2(p)
@@ -167,7 +172,7 @@ def calculate_perplexity(model, test_file):
 
     Hm = total_logp / count
     PPm = 2 ** Hm
-    print(PPm)
+    return(PPm)
 
 
 # task6
@@ -179,14 +184,13 @@ if __name__ == '__main__':
     split_input_file('./data/test')
     language_model(input_file, 'en', choose_alpha('./data/training.en', 'validation.txt'))
     # input_file = open('./data/training.es', 'r')
-    # language_model(input_file, 'es')
     # input_file = open('./data/training.de', 'r')
     # language_model(input_file, 'de')
     # input_file.close()
 
     # task4
     generate_from_LM('./data/model-br.en')
-    # generate_from_LM('trigram_model.en')
+    generate_from_LM('trigram_model.en')
 
     # task5
     calculate_perplexity('trigram_model.en', './data/test')
