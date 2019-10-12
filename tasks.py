@@ -1,9 +1,12 @@
 import re
 import random
 import math
+import numpy as np
+import matplotlib.pylab as plt
+from sklearn.model_selection import train_test_split
 
 # task1
-def process_line(str):
+def preprocess_line(str):
     # remove the other characters
     fil1 = re.compile('[^a-zA-Z0-9. ]')
     new_str = fil1.sub('', str)
@@ -24,7 +27,6 @@ def process_line(str):
 vocab = [' ', '#', '.', '0', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
          's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
 
-
 # count n-gram sequence in each line
 def count_ngrams(ngram_count, str, n):
     for i in range(0, len(str) - n + 1):
@@ -35,12 +37,13 @@ def count_ngrams(ngram_count, str, n):
             ngram_count[ngram] += 1
     return ngram_count
 
+# count bigrams and trigrams of a text and generates trigram probabilities using add-alpha smoothing 
 def language_model(input_file, language):
     bigram_count = {}
     trigram_count = {}
     for line in input_file:
         # process line as described in task1
-        line = preprocess_line(line)
+        line = prepreprocess_line(line)
         bigram_count = count_ngrams(bigram_count, line, 2)
         trigram_count = count_ngrams(trigram_count, line, 3)
 
@@ -61,11 +64,11 @@ def language_model(input_file, language):
                 if seq3 not in trigram_count:
                     trigram_count[seq3] = 0
                     
-                # add one smoothing
+                # add alpha smoothing
                 if c1 == '#' and c2 != '#':
-                    prob[seq3] = (count_character_3[seq3] + 1) / (count_character_2[seq2] + 29)
+                    prob[seq3] = (count_character_3[seq3] + alpha) / (count_character_2[seq2] + alpha*30)
                 else:
-                    prob[seq3] = (count_character_3[seq3] + 1) / (count_character_2[seq2] + 29)
+                    prob[seq3] = (count_character_3[seq3] + alpha) / (count_character_2[seq2] + alpha*29)
 
     # write the trigram model probabilities into file
     output_file = open('trigram_model.' + language, 'w')
@@ -74,7 +77,36 @@ def language_model(input_file, language):
         output_file.write(item + '\t' + '%e' % prob[item] + '\n')
 
     output_file.close()
+    
+# Split test text into 2 parts: a held-out (validation) text and a test text
 
+def split_input_file(input_file):    
+    validation, test = train_test_split(preprocess_text(input_file), train_size=0.5, random_state=1)
+    # save validation text into txt file
+    with open("validation.txt", "w") as f:
+        for line in train:
+            f.write("".join(line) + "\n")    
+    # save test text into txt file
+    with open("test.txt", "w") as f:
+        for line in validation:
+            f.write("".join(line) + "\n")
+
+# Train the training text with different alphas and choose the one that minimizes the perplexity on the validation test   
+def choose_alpha(train_file, validation_file):
+    perplexities = dict()
+    for alpha in np.arange(0.1, 1.1, 0.1):
+        training = open(train_file, 'r')
+        language_model(training, 'en', alpha) #generate a model for each value of alpha in the range
+        perplexities[alpha] = calculate_perplexity('trigram_model.en', validation_file) # compute perplexity on the validation text
+    # Save alpha that minimizes perplexity 
+    best_alpha = min(perplexities, key=perplexities.get) 
+    # Plot perplexities 
+    plt.plot(list(perplexities.keys()), list(perplexities.values()))
+    plt.plot(best_alpha, perplexities[best_alpha], marker = 'o')
+    plt.xlabel("alpha")
+    plt.ylabel("Perplexity")
+    
+    return best_alpha
 
 # Task 4
 N = 300
@@ -144,7 +176,8 @@ def calculate_perplexity(model, test_file):
 if __name__ == '__main__':
     # task3
     input_file = open('./data/training.en', 'r')
-    language_model(input_file, 'en')
+    split_input_file('./data/test')
+    language_model(input_file, 'en', choose_alpha('./data/training.en', 'validation.txt'))
     # input_file = open('./data/training.es', 'r')
     # language_model(input_file, 'es')
     # input_file = open('./data/training.de', 'r')
