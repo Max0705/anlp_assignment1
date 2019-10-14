@@ -178,6 +178,8 @@ def calculate_perplexity(model, test_file):
 # task6
 
 
+
+
 if __name__ == '__main__':
     # task3
     input_file = open('./data/training.en', 'r')
