@@ -10,16 +10,13 @@ from sklearn.model_selection import train_test_split
 def preprocess_line(str):
     # remove the other characters
     new_str = re.sub('[^a-zA-Z0-9. ]', '', str)
-
     # convert all digits to 0
     new_str = re.sub('[0-9]', "0", new_str)
-
     # convert all English characters to lower case
     new_str = new_str.lower()
-
     # add '##' at the beginning and '#' at the end of each line
     new_str = '##' + new_str + '#'
-
+    # to avoid double spaces
     new_str = ' '.join(new_str.split())
 
     return new_str
@@ -116,7 +113,7 @@ def split_input_file(input_file):
 
 
 # Train the training text with different alphas and choose the one that minimizes the perplexity on the validation test
-def choose_alpha(train_file, validation_file, language):
+def choose_lambdas(train_file, validation_file, language):
     perplexities = dict()
     for lambda1 in np.arange(0.1, 1, 0.1):
         for lambda2 in np.arange(0.1, 1, 0.1):
@@ -210,19 +207,19 @@ if __name__ == '__main__':
     # task3
     split_input_file('./data/training.en')
     input_file = open('./data/training.en', 'r')
-    lambda1, lambda2, lambda3 = choose_alpha('new_training', 'validation', 'en')
+    lambda1, lambda2, lambda3 = choose_lambdas('new_training', 'validation', 'en')
     language_model(input_file, 'en', lambda1, lambda2, lambda3)
     input_file.close()
 
     split_input_file('./data/training.es')
     input_file = open('./data/training.es', 'r')
-    lambda1, lambda2, lambda3 = choose_alpha('new_training', 'validation', 'es')
+    lambda1, lambda2, lambda3 = choose_lambdas('new_training', 'validation', 'es')
     language_model(input_file, 'es', lambda1, lambda2, lambda3)
     input_file.close()
 
     split_input_file('./data/training.de')
     input_file = open('./data/training.de', 'r')
-    lambda1, lambda2, lambda3 = choose_alpha('new_training', 'validation', 'de')
+    lambda1, lambda2, lambda3 = choose_lambdas('new_training', 'validation', 'de')
     language_model(input_file, 'de', lambda1, lambda2, lambda3)
     input_file.close()
 
