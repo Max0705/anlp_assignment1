@@ -42,18 +42,15 @@ def count_ngrams(ngram_count, str, n):
 
 
 # count bigrams and trigrams of a text and generates trigram probabilities using add-alpha smoothing
-def language_model(input_file, language, lambda1, lambda2, lambda3):
-    unigram_count = {}
+def language_model(input_file, language, alpha):
     bigram_count = {}
     trigram_count = {}
     for line in input_file:
         # process line as described in task1
         line = preprocess_line(line)
-        unigram_count = count_ngrams(unigram_count, line, 1)
         bigram_count = count_ngrams(bigram_count, line, 2)
         trigram_count = count_ngrams(trigram_count, line, 3)
 
-    total = sum(unigram_count.values())
     # estimate trigram probabilities
     prob = {}
     for c1 in vocab:
@@ -64,26 +61,18 @@ def language_model(input_file, language, lambda1, lambda2, lambda3):
                     continue
                 if c1 != '#' and c2 == '#':
                     continue
-                seq1 = ''.join([c3])
-                seq2 = ''.join([c2, c3])
-                seq3 = ''.join([c2])
-                seq4 = ''.join([c1, c2, c3])
-                seq5 = ''.join([c1, c2])
-                if seq1 not in unigram_count:
-                    unigram_count[seq1] = 0
+                seq2 = ''.join([c1, c2])
+                seq3 = ''.join([c1, c2, c3])
                 if seq2 not in bigram_count:
                     bigram_count[seq2] = 0
-                if seq3 not in unigram_count:
-                    unigram_count[seq3] = 0
-                if seq4 not in trigram_count:
-                    trigram_count[seq4] = 0
-                if seq5 not in bigram_count:
-                    bigram_count[seq5] = 0
+                if seq3 not in trigram_count:
+                    trigram_count[seq3] = 0
 
                 # add alpha smoothing
-                prob[seq4] = lambda1 * (unigram_count[seq1] / total) + lambda2 * (
-                        (bigram_count[seq2] + 1) / (unigram_count[seq3] + 30)) + lambda3 * (
-                                     (trigram_count[seq4] + 1) / (bigram_count[seq5] + 30))
+                if c1 == '#' and c2 != '#':
+                    prob[seq3] = (trigram_count[seq3] + alpha) / (bigram_count[seq2] + alpha * 29)
+                else:
+                    prob[seq3] = (trigram_count[seq3] + alpha) / (bigram_count[seq2] + alpha * 30)
 
     # write the trigram model probabilities into file
     output_file = open('trigram_model.' + language, 'w')
@@ -103,42 +92,36 @@ def split_input_file(input_file):
         for line in f:
             line = preprocess_line(line)
             text.append(line)
-        validation, test = train_test_split(text, train_size=0.2, random_state=1)
+        validation, training = train_test_split(text, train_size=0.2, random_state=1)
 
     # save validation text into txt file
     with open("validation", "w") as f:
         for line in validation:
             f.write("".join(line) + "\n")
             # save test text into txt file
-    with open("new_test", "w") as f:
-        for line in test:
+    with open("new_train", "w") as f:
+        for line in training:
             f.write("".join(line) + "\n")
 
 
 # Train the training text with different alphas and choose the one that minimizes the perplexity on the validation test
 def choose_alpha(train_file, validation_file, language):
     perplexities = dict()
-    for lambda1 in np.arange(0.1, 1, 0.1):
-        for lambda2 in np.arange(0.1, 1, 0.1):
-            if lambda1 + lambda2 >= 1:
-                continue
-            lambda3 = 1 - lambda1 - lambda2
-            training = open(train_file, 'r')
-            language_model(training, language, lambda1, lambda2,
-                           lambda3)  # generate a model for each value of alpha in the range
-            perplexities[tuple([lambda1, lambda2, lambda3])] = calculate_perplexity('trigram_model.' + language,
-                                                                                    validation_file)  # compute perplexity on the validation text
+    for alpha in np.arange(0.01, 0.3, 0.01):
+        training = open(train_file, 'r')
+        language_model(training, language, alpha)  # generate a model for each value of alpha in the range
+        perplexities[alpha] = calculate_perplexity('trigram_model.'+language,
+                                                   validation_file)  # compute perplexity on the validation text
     # Save alpha that minimizes perplexity
     best_alpha = min(perplexities, key=perplexities.get)
-    # best_alpha = list(best_alpha)
     # Plot perplexities
-    # plt.plot(list(perplexities.keys()), list(perplexities.values()))
-    # plt.plot(best_alpha, perplexities[best_alpha], marker='o')
-    # plt.xlabel("alpha")
-    # plt.ylabel("Perplexity")
-    # plt.show()
+    plt.plot(list(perplexities.keys()), list(perplexities.values()))
+    plt.plot(best_alpha, perplexities[best_alpha], marker='o')
+    plt.xlabel("alpha")
+    plt.ylabel("Perplexity")
+    plt.show()
 
-    return best_alpha[0], best_alpha[1], best_alpha[2]
+    return best_alpha
 
 
 # Task 4
@@ -210,28 +193,31 @@ if __name__ == '__main__':
     # task3
     split_input_file('./data/training.en')
     input_file = open('./data/training.en', 'r')
-    lambda1, lambda2, lambda3 = choose_alpha('new_test', 'validation', 'en')
-    # lambda1, lambda2, lambda3 = choose_alpha('./data/training.en', './data/test', 'en')
-    # lambda1, lambda2, lambda3 = 0.1, 0.2, 0.7
-    language_model(input_file, 'en', lambda1, lambda2, lambda3)
+    language_model(input_file, 'en', choose_alpha('new_train', 'validation', 'en'))
     input_file.close()
-    # split_input_file('./data/training.es')
-    # input_file = open('./data/training.es', 'r')
-    # language_model(input_file, 'es', choose_alpha('new_test', 'validation', 'es'))
-    # input_file.close()
-    # input_file = open('./data/training.de', 'r')
-    # language_model(input_file, 'de', choose_alpha('new_test', 'validation', 'de'))
-    # input_file.close()
-    # input_file = open('./data/training.es', 'r')
-    # input_file = open('./data/training.de', 'r')
-    # language_model(input_file, 'en', 0.7)
+
+    split_input_file('./data/training.es')
+    input_file = open('./data/training.es', 'r')
+    language_model(input_file, 'es', choose_alpha('new_train', 'validation', 'es'))
+    input_file.close()
+
+    split_input_file('./data/training.de')
+    input_file = open('./data/training.de', 'r')
+    language_model(input_file, 'de', choose_alpha('new_train', 'validation', 'de'))
+    input_file.close()
     # input_file.close()
 
     # task4
-    # generate_from_LM('./data/model-br.en')
-    # print(generate_from_LM('trigram_model.en'))
+    print('output of model-br.en:')
+    print(generate_from_LM('./data/model-br.en'))
+    print('output of our English language model:')
+    print(generate_from_LM('trigram_model.en'))
 
     # task5
+    print('perplexity on English model:')
     print(calculate_perplexity('trigram_model.en', './data/test'))
+    print('perplexity on Spanish model:')
     print(calculate_perplexity('trigram_model.es', './data/test'))
+    print('perplexity on German model:')
     print(calculate_perplexity('trigram_model.de', './data/test'))
+
