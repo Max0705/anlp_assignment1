@@ -1,15 +1,17 @@
 import re
-
+import random
+import math
+import numpy as np
+import matplotlib.pylab as plt
+from sklearn.model_selection import train_test_split
 
 # task1
-def process_line(str):
+def preprocess_line(str):
     # remove the other characters
-    fil1 = re.compile('[^a-zA-Z0-9. ]')
-    new_str = fil1.sub('', str)
-
+    new_str = re.sub('[^a-zA-Z0-9. ]', '', str)
+    
     # convert all digits to 0
-    fil2 = re.compile('[0-9]')
-    new_str = fil2.sub('0', new_str)
+    new_str = re.sub('[0-9]', "0", new_str)
 
     # convert all English characters to lower case
     new_str = new_str.lower()
@@ -19,49 +21,35 @@ def process_line(str):
 
     return new_str
 
-
-# task2
-# Q: By looking at the language model probabilities in this file, can you say anything about the kind of estimation
-# method that was used?
-# A: Maximum likelihood estimation with add one smoothing. Because all unseen 3-character sequences have the same
-# probability, and not small enough. Just as 'steal' too much from the other right sequences. So it's using add one smoothing.
-
-
-# task3
-# IMPORTANT QUESTION: DO WE NEED TO ADD '#' AT THE BEGINNING AND THE END OF THE SENTENCE???
-# no add of '#' in following codes
-alpha = [' ', '#', '.', '0', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
+# Task 3
+vocab = [' ', '#', '.', '0', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
          's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
 
-
-# count n-characters sequence in each line
-def count_character(count_result, str, n):
+# count n-gram sequence in each line
+def count_ngrams(ngram_count, str, n):
     for i in range(0, len(str) - n + 1):
-        seq = str[i:i + n]
-        if seq not in count_result:
-            count_result[seq] = 1
+        ngram = str[i:i + n]
+        if ngram not in ngram_count:
+            ngram_count[ngram] = 1
         else:
-            count_result[seq] += 1
-    return count_result
+            ngram_count[ngram] += 1
+    return ngram_count
 
-
-# def
-
-
-def language_model(input_file, language):
-    count_character_2 = {}
-    count_character_3 = {}
+# count bigrams and trigrams of a text and generates trigram probabilities using add-alpha smoothing 
+def language_model(input_file, language, alpha):
+    bigram_count = {}
+    trigram_count = {}
     for line in input_file:
         # process line as described in task1
-        line = process_line(line)
-        count_character_2 = count_character(count_character_2, line, 2)
-        count_character_3 = count_character(count_character_3, line, 3)
+        line = preprocess_line(line)
+        bigram_count = count_ngrams(bigram_count, line, 2)
+        trigram_count = count_ngrams(trigram_count, line, 3)
 
     # estimate trigram probabilities
     prob = {}
-    for c1 in alpha:
-        for c2 in alpha:
-            for c3 in alpha:
+    for c1 in vocab:
+        for c2 in vocab:
+            for c3 in vocab:
                 # to avoid sequences like '# #' and ' # '
                 if c1 == '#' and c3 == '#':
                     continue
@@ -69,16 +57,16 @@ def language_model(input_file, language):
                     continue
                 seq2 = ''.join([c1, c2])
                 seq3 = ''.join([c1, c2, c3])
-                if seq2 not in count_character_2:
-                    count_character_2[seq2] = 0
-                if seq3 not in count_character_3:
-                    count_character_3[seq3] = 0
-
-                # add one smoothing
+                if seq2 not in bigram_count:
+                    bigram_count[seq2] = 0
+                if seq3 not in trigram_count:
+                    trigram_count[seq3] = 0
+                    
+                # add alpha smoothing
                 if c1 == '#' and c2 != '#':
-                    prob[seq3] = (count_character_3[seq3] + 1) / (count_character_2[seq2] + 29)
+                    prob[seq3] = (trigram_count[seq3] + alpha) / (bigram_count[seq2] + alpha*30)
                 else:
-                    prob[seq3] = (count_character_3[seq3] + 1) / (count_character_2[seq2] + 29)
+                    prob[seq3] = (trigram_count[seq3] + alpha) / (bigram_count[seq2] + alpha*29)
 
     # write the trigram model probabilities into file
     output_file = open('trigram_model.' + language, 'w')
@@ -87,31 +75,46 @@ def language_model(input_file, language):
         output_file.write(item + '\t' + '%e' % prob[item] + '\n')
 
     output_file.close()
+    
+# Split test text into 2 parts: a held-out (validation) text and a test text
 
+def split_input_file(input_file):    
+    #
+    text = []
+    with open(input_file) as f:
+        for line in f:
+            line = preprocess_line(line)
+            text.append(line)
+        validation, test = train_test_split(text, train_size=0.5, random_state=1)
+        
+    # save validation text into txt file
+    with open("validation.txt", "w") as f:
+        for line in validation:
+            f.write("".join(line) + "\n")    
+    # save test text into txt file
+    with open("test.txt", "w") as f:
+        for line in test:
+            f.write("".join(line) + "\n")
 
-# task4
-import random
+# Train the training text with different alphas and choose the one that minimizes the perplexity on the validation test   
+def choose_alpha(train_file, validation_file):
+    perplexities = dict()
+    for alpha in np.arange(0.1, 1.1, 0.1):
+        training = open(train_file, 'r')
+        language_model(training, 'en', alpha) #generate a model for each value of alpha in the range
+        perplexities[alpha] = calculate_perplexity('trigram_model.en', validation_file) # compute perplexity on the validation text
+    # Save alpha that minimizes perplexity 
+    best_alpha = min(perplexities, key=perplexities.get) 
+    # Plot perplexities 
+    plt.plot(list(perplexities.keys()), list(perplexities.values()))
+    plt.plot(best_alpha, perplexities[best_alpha], marker = 'o')
+    plt.xlabel("alpha")
+    plt.ylabel("Perplexity")
+    
+    return best_alpha
 
+# Task 4
 N = 300
-
-
-# roulette algorithm to choose the higher probability character. assume the sum of probability is 1
-# if don't use this algorithm, the program will always choose character ' ', 't', 'h', 'e' and output the the the.....
-def choose_character(new_prob):
-    keys = list(new_prob.keys())
-    values = list(new_prob.values())
-    target = random.uniform(0, 1)
-    # print(target)
-    present = 0
-    k = ''
-    for i in range(0, len(keys)):
-        present += values[i]
-        if present >= target:
-            k = keys[i]
-            break
-    print(k)
-    return k
-
 
 def generate_from_LM(model_file_name):
     f = open(model_file_name)
@@ -121,44 +124,31 @@ def generate_from_LM(model_file_name):
         line = line.split('\t')
         prob[line[0]] = float(line[1])
 
-    output_str = ''
-
-    # random generate the first two characters
-    # head = random.sample(alpha, 2)
-    # head = ''.join(head)
+    output = ''
     head = '##'
-    output_str += head
-
+    output += head
     # generate the other characters
     for i in range(N - 2):
         # print(head)
         new_prob = {}
-        for item in alpha:
+        for item in vocab:
             if head + item in prob.keys():
                 new_prob[item] = prob[head + item]
 
-        print(new_prob)
-        k = random.choices(population=list(new_prob.keys()), weights=list(new_prob.values()), k=1)
-        k = k[0]
-        print(k)
-        # k = choose_character(new_prob)
-        # k = max(new_prob.items(), key=lambda x: x[1])
-        # output_str += k[0]
-        output_str += k
-        head = output_str[-2:]
-        if k == '#':
+        #print(new_prob)
+        trigram_picked = random.choices(population=list(new_prob.keys()), weights=list(new_prob.values()), k=1)
+        ch_picked = trigram_picked[0]
+        output += ch_picked
+        head = output[-2:]
+        if ch_picked == '#':
             head = '##'
-            output_str += '\n##'
+            output += '\n##'
 
-    print(output_str)
-
-
-# task5
-import math
+    print(output)
 
 
-# the slide only give the function for one sequence. so i don't know whether this function is right for all lines
-# in the test file
+# Task 5
+
 def calculate_perplexity(model, test_file):
     # read model
     f1 = open(model, 'r')
@@ -174,7 +164,7 @@ def calculate_perplexity(model, test_file):
     f2 = open(test_file, 'r')
     for line in f2:
         # process line as described in task1
-        line = process_line(line)
+        line = preprocess_line(line)
         for i in range(0, len(line) - 2):
             p = prob[line[i:i + 3]]
             total_logp += -math.log2(p)
@@ -182,25 +172,27 @@ def calculate_perplexity(model, test_file):
 
     Hm = total_logp / count
     PPm = 2 ** Hm
-    print(PPm)
+    return(PPm)
 
 
 # task6
 
 
+
+
 if __name__ == '__main__':
     # task3
     input_file = open('./data/training.en', 'r')
-    language_model(input_file, 'en')
+    split_input_file('./data/test')
+    language_model(input_file, 'en', choose_alpha('./data/training.en', 'validation.txt'))
     # input_file = open('./data/training.es', 'r')
-    # language_model(input_file, 'es')
     # input_file = open('./data/training.de', 'r')
     # language_model(input_file, 'de')
     # input_file.close()
 
     # task4
     generate_from_LM('./data/model-br.en')
-    # generate_from_LM('trigram_model.en')
+    generate_from_LM('trigram_model.en')
 
     # task5
     calculate_perplexity('trigram_model.en', './data/test')
